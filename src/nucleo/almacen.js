@@ -1,11 +1,12 @@
 /* ==========================================================================
    AXIONA EVALÚA · Almacén local (IndexedDB)
    --------------------------------------------------------------------------
-   Todo se guarda primero en el celular. Funciona sin internet; la
+   Todo se guarda primero en el teléfono: la app funciona sin internet y la
    sincronización sube lo pendiente cuando vuelve la señal.
+   v2: se agregan los predios (expedientes) a las tablas de la v1.
    ========================================================================== */
-const DB = 'axiona-evalua', VER = 1;
-const TABLAS = ['viviendas', 'evaluaciones', 'ajustes'];
+const DB = 'axiona-evalua', VER = 2;
+const TABLAS = ['viviendas', 'evaluaciones', 'ajustes', 'predios'];
 
 let conexion = null;
 function abrir() {
@@ -33,7 +34,6 @@ export const uno = (t, id) => tx(t, 'readonly', s => s.get(id));
 export const guardar = (t, obj) => tx(t, 'readwrite', s => { s.put(obj); return obj; });
 export const guardarVarios = (t, lista) => tx(t, 'readwrite', s => { lista.forEach(o => s.put(o)); return lista.length; });
 export const borrar = (t, id) => tx(t, 'readwrite', s => s.delete(id));
-export const vaciar = t => tx(t, 'readwrite', s => s.clear());
 
 export async function ajuste(id, valor) {
   if (valor === undefined) return (await uno('ajustes', id))?.v;

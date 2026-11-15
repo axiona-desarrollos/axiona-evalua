@@ -1,10 +1,19 @@
-# AXIONA EVALÚA · Alcaldía de Quibdó. Sitio estático (Vite) + funciones: acceso, Agente Axiona y sincronización.
+# AXIONA EVALÚA: app unificada + Axiona Obra (/obra/) + Axiona Topo (/topo/).
+# Se publica dist/ ya compuesto (npm run build:todo). Candado de ingreso: edge function «candado».
 [build]
   publish = "dist"
-  command = "npm run build"
+  command = "npm run build:todo"
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["src/derechos/**"]
+
+[functions.obra-dwg]
+  included_files = ["netlify/bin/dxf2dwg"]
+
+[[edge_functions]]
+  function = "candado"
+  path = "/*"
 
 [[headers]]
   for = "/*"
@@ -12,7 +21,7 @@
     X-Robots-Tag = "noindex, nofollow"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(self), geolocation=(self)"
+    Permissions-Policy = "camera=(self), geolocation=(self), accelerometer=(self), gyroscope=(self), xr-spatial-tracking=(self), fullscreen=(self)"
 
 [[headers]]
   for = "/assets/*"
@@ -28,3 +37,8 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/mapa/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

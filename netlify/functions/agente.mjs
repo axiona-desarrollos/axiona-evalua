@@ -6,7 +6,7 @@ import { r, pinValido, leerJSON } from '../lib/comun.mjs';
 
 const MODELO = process.env.AGENTE_MODELO || 'claude-sonnet-5-5';
 
-const SISTEMA = `Eres el Agente Axiona, asistente técnico de AXIONA EVALÚA para la Alcaldía de Quibdó (Chocó, Colombia), tras el sismo del 10 de agosto de 2026.
+const SISTEMA = `Eres el Agente Axiona, asistente técnico de AXIONA EVALÚA en Quibdó (Chocó) y Pereira (Risaralda), Colombia, tras el sismo del 10 de agosto de 2026.
 Apoyas la FASE 1 (inspección visual rápida) de la metodología unificada de la Circular Conjunta 73 de 2026 (UNGRD–IDIGER), con carteles:
 - verde (Inspeccionada): ingreso y usos permitidos, sin condiciones severas ni daño estructural aparente que comprometa la seguridad;
 - amarillo (Uso restringido): ocupación parcial o condicionada; requiere fase 2;
@@ -16,7 +16,7 @@ Reglas:
 2. Sé conservador con la vida: ante evidencia de colapso, desplome, daño severo en columnas, vigas o nudos, o falla del terreno, sugiere rojo.
 3. Basa cada afirmación en lo que se ve en las fotos o en lo marcado en el formulario. Si una foto no permite concluir, dilo.
 4. Señala faltantes (fotos o datos que impiden decidir) e inconsistencias (lo marcado no coincide con las fotos, o datos contradictorios).
-5. Contexto local: en Quibdó abundan la mampostería no reforzada, la madera y los palafitos; considera humedad, socavación y suelos blandos.
+5. Contexto local: en Quibdó abundan la mampostería no reforzada, la madera y los palafitos (humedad, socavación, suelos blandos aluviales); en Pereira, la mampostería confinada, los pórticos y edificios de propiedad horizontal en laderas y rellenos.
 6. Escribe en español claro y técnico, sin adornos. El borrador de concepto debe poder firmarse tras la revisión del ingeniero.`;
 
 const ESQUEMA = {
@@ -54,7 +54,7 @@ export default async (req) => {
   contenido.push({ type: 'text', text: `Formulario de fase 1 diligenciado por el equipo de campo (JSON):\n${JSON.stringify({ edificacion: ev.edificacion, condiciones: ev.condiciones, observaciones: ev.observaciones, ubicacion: ev.ubicacion, hogar: { personas: ev.hogar?.personas, menores: ev.hogar?.menores, mayores: ev.hogar?.mayores, discapacidad: ev.hogar?.discapacidad, zona: ev.hogar?.zona } }, null, 1)}\n\nFotos recibidas: ${fotos.map(f => f.id).join(', ') || 'ninguna'}.\nRevisa la evaluación y responde con la estructura indicada.` });
 
   try {
-    const client = new Anthropic({ maxRetries: 1, timeout: 55000 });
+    const client = new Anthropic({ maxRetries: 1, timeout: 55000, apiKey: process.env.ANTHROPIC_API_KEY || process.env.NETLIFY_AI_GATEWAY_KEY, baseURL: process.env.ANTHROPIC_BASE_URL || process.env.NETLIFY_AI_GATEWAY_URL || process.env.NETLIFY_AI_GATEWAY_BASE_URL });
     const m = await client.messages.create({
       model: MODELO, max_tokens: 4000,
       system: SISTEMA,

@@ -1,10 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { nuevaEvaluacion, faltantes, puedeFirmar, CARTELES, CONDICIONES } from '../src/formulario.js';
-import { preclasificar } from '../src/reglas.js';
-import { viviendasDemo, evaluacionesDemo } from '../src/datos.js';
-import { csvEDAN, csvRUD } from '../src/exportar.js';
+import { nuevaEvaluacion, faltantes, puedeFirmar, CARTELES, CONDICIONES } from '../src/evaluacion/formulario.js';
+import { preclasificar } from '../src/evaluacion/reglas.js';
+import { prediosDemo, viviendaDePredio, nuevoPredio, faltantesSolicitud, resumen } from '../src/nucleo/predio.js';
+import { csvEDAN, csvRUD } from '../src/evaluacion/exportar.js';
 
+const viviendasDemo = n => prediosDemo('quibdo', n).map(viviendaDePredio);
 const viv = viviendasDemo(12);
+/** Evaluaciones firmadas de ejemplo para probar las exportaciones. */
+const evaluacionesDemo = vs => vs.filter((_, i) => i % 3 === 0).map(v => {
+  const e = nuevaEvaluacion(v, { nombre: 'Ing. Demo', profesion: 'Ingeniero civil', matricula: 'CHO-2', rupe: 'RUPE-2', perfil: 'P1' });
+  e.estado = 'firmada'; e.firmada = '2026-11-10T15:00:00Z'; e.decision.cartel = 'amarillo'; e.decision.restricciones = 'Uso restringido';
+  e.hogar.etnia = 'afro'; e.hogar.consentimiento = true; return e;
+});
 const ev0 = () => nuevaEvaluacion(viv[0], { nombre: 'Ing. Prueba', profesion: 'Ingeniero civil', matricula: 'CHO-1', rupe: 'RUPE-1', perfil: 'P1' });
 const completa = () => {
   const e = ev0();
@@ -39,9 +46,18 @@ describe('Preclasificación sin conexión (sugerencia, nunca decisión)', () => 
 });
 
 describe('Datos de demostración y exportaciones', () => {
-  it('las viviendas de demostración son siempre las mismas y quedan cerca de Quibdó', () => {
-    expect(viviendasDemo(12)).toEqual(viv);
+  it('los predios de demostración son siempre los mismos y quedan en su ciudad', () => {
+    expect(viviendasDemo(12).map(v => [v.lat, v.lon])).toEqual(viv.map(v => [v.lat, v.lon]));
     viv.forEach(v => { expect(v.lat).toBeGreaterThan(5.67); expect(v.lat).toBeLessThan(5.72); expect(v.lon).toBeGreaterThan(-76.68); expect(v.lon).toBeLessThan(-76.63); });
+    prediosDemo('pereira', 12).forEach(p => { expect(p.ubicacion.lat).toBeGreaterThan(4.77); expect(p.ubicacion.lat).toBeLessThan(4.83); expect(p.demo).toBe(true); });
+  });
+  it('la solicitud del ciudadano exige ubicación, fachada, contacto y consentimiento; el resumen no lleva fotos ni teléfono', () => {
+    const p = nuevoPredio('pereira');
+    expect(faltantesSolicitud(p)).toEqual(expect.arrayContaining(['Ubicación de la vivienda', 'Foto de la fachada', 'Autorización de tratamiento de datos (Ley 1581)']));
+    expect(p.id).toMatch(/^P-26-[A-Z0-9]{5}$/);
+    p.fotos.push({ tipo: 'fachada', data: 'x' }); p.contacto.telefono = '300';
+    const r = resumen(p);
+    expect(JSON.stringify(r)).not.toContain('300'); expect(r.nFotos).toBe(1);
   });
   it('EDAN y RUD exportan solo conceptos firmados, con encabezado y BOM para Excel', () => {
     const evs = [...evaluacionesDemo(viv), ev0()];

@@ -1,38 +1,57 @@
-/* AXIONA EVALÚA · service worker: la app abre y funciona sin internet.
-   - index.html: red primero (para recibir versiones nuevas) y copia de respaldo.
-   - Código, fuentes e íconos: caché primero (los .js llevan hash).
-   - Mapa: guarda las teselas que ya se vieron, con tope, para usarlas sin señal.
-   - /api/*: nunca se guarda en caché. */
-const VERSION = 'evalua-v1';
-const MAPA = 'evalua-mapa-v1', TOPE_MAPA = 1500;
-const BASICOS = ['./', './index.html', './manifest.webmanifest', './icono-192.png', './icono-512.png'];
+/* AXIONA EVALÚA · Service worker: la app abre y funciona sin señal.
+   - Navegación: red primero; sin señal, la última versión guardada.
+   - /assets/* (con hash): caché primero.
+   - /mapa/*.pmtiles: si el mapa de la ciudad se descargó, responde las peticiones
+     por rangos (Range) desde el teléfono; si no, va a la red.
+   - /mapa/fuentes, /mapa/sprites, /sismo/*: caché con actualización en segundo plano.
+   - /obra/ y /topo/ tienen su propio service worker; /api/ siempre va a la red. */
+const VERSION = 'evalua-v2.0.0';
+const APP = `app-${VERSION}`, MAPAS = 'axiona-mapas-v1';
+const BASE = ['/', '/index.html', '/manifest.webmanifest', '/icono-192.png', '/icono-512.png', '/puente.js'];
 
-self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(BASICOS)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => ![VERSION, MAPA].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(APP).then(c => c.addAll(BASE).catch(() => {})).then(() => self.skipWaiting()));
 });
-async function recortar() {
-  const c = await caches.open(MAPA), ks = await c.keys();
-  for (let i = 0; i < ks.length - TOPE_MAPA; i++) await c.delete(ks[i]);
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('app-') && k !== APP).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+
+async function porRango(req, cache) {
+  const entero = await cache.match(new URL(req.url).pathname);
+  if (!entero) return null;
+  const rango = req.headers.get('range');
+  if (!rango) return entero;
+  const m = /bytes=(\d+)-(\d*)/.exec(rango);
+  if (!m) return entero;
+  const buf = await entero.arrayBuffer();
+  const ini = +m[1], fin = m[2] ? Math.min(+m[2], buf.byteLength - 1) : buf.byteLength - 1;
+  return new Response(buf.slice(ini, fin + 1), { status: 206, headers: { 'Content-Type': 'application/octet-stream', 'Content-Range': `bytes ${ini}-${fin}/${buf.byteLength}`, 'Content-Length': String(fin - ini + 1), 'Accept-Ranges': 'bytes' } });
 }
+
 self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET') return;
-  if (url.pathname.startsWith('/api/')) return;
-  if (url.hostname === 'tile.openstreetmap.org') {
-    e.respondWith(caches.open(MAPA).then(async c => {
-      const g = await c.match(req);
-      if (g) return g;
-      try { const r = await fetch(req); if (r.ok) { c.put(req, r.clone()); recortar(); } return r; } catch { return new Response('', { status: 504 }); }
-    }));
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  const p = url.pathname;
+  if (p.startsWith('/api/') || p.startsWith('/obra/') || p.startsWith('/topo/') || p.startsWith('/__candado')) return;
+
+  if (p.endsWith('.pmtiles')) {
+    e.respondWith(caches.open(MAPAS).then(c => porRango(req, c)).then(r => r || fetch(req)));
     return;
   }
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then(r => { const k = r.clone(); caches.open(VERSION).then(c => c.put('./index.html', k)); return r; })
-      .catch(() => caches.match('./index.html').then(r => r || caches.match('./'))));
+    e.respondWith(fetch(req).then(r => { if (r.ok) { const copia = r.clone(); caches.open(APP).then(c => c.put('/index.html', copia)); } return r; })
+      .catch(() => caches.match('/index.html').then(r => r || caches.match('/'))));
     return;
   }
-  if (url.origin === location.origin || url.hostname.endsWith('gstatic.com') || url.hostname.endsWith('googleapis.com')) {
-    e.respondWith(caches.match(req).then(g => g || fetch(req).then(r => { if (r.ok) { const k = r.clone(); caches.open(VERSION).then(c => c.put(req, k)); } return r; })));
+  if (p.startsWith('/assets/')) {
+    e.respondWith(caches.match(req).then(r => r || fetch(req).then(x => { if (x.ok) { const copia = x.clone(); caches.open(APP).then(c => c.put(req, copia)); } return x; })));
+    return;
+  }
+  if (p.startsWith('/mapa/') || p.startsWith('/sismo/') || /\.(png|svg|webmanifest|js)$/.test(p)) {
+    e.respondWith((async () => {
+      const guardada = (await caches.match(req)) || (await caches.open(MAPAS).then(c => c.match(p)));
+      const red = fetch(req).then(x => { if (x.ok && x.status === 200) { const copia = x.clone(); caches.open(APP).then(c => c.put(req, copia)); } return x; }).catch(() => null);
+      return guardada || (await red) || new Response('', { status: 504 });
+    })());
   }
 });

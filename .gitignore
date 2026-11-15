@@ -1,3 +1,7 @@
 node_modules
 dist
 .netlify
+.cache
+# generados por scripts/componer.mjs a partir de Axiona Obra
+netlify/functions/obra-*.mjs
+netlify/bin/
