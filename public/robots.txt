@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /obra/
+Disallow: /topo/
+Disallow: /api/
+
+Sitemap: https://evalua.axionasoft.com/sitemap.xml

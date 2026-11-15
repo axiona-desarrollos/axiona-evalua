@@ -39,8 +39,21 @@ input:focus{outline:2px solid var(--a);border-color:transparent}button{margin-to
 <label for="codigo">Código de acceso</label><input id="codigo" name="codigo" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required autofocus>
 <input type="hidden" name="destino" value="${destino.replace(/[^\w/?=&.%-]/g, '')}"><button type="submit">Entrar</button>${error ? `<div class="e">${error}</div>` : ''}<div class="n">Axiona Desarrollos Inteligentes · acceso restringido</div></form></body></html>`;
 
+// Sitio abierto: la app se indexa; /obra/ y /topo/ no, porque tienen su propio sitio público.
+// Se fija aquí porque las cabeceras de netlify.toml se aplican antes y pueden traer un noindex heredado.
+const PERMISOS = 'camera=(self), geolocation=(self), accelerometer=(self), gyroscope=(self), xr-spatial-tracking=(self), fullscreen=(self)';
+async function publico(req, context) {
+  const res = await context.next();
+  const ruta = new URL(req.url).pathname;
+  const h = new Headers(res.headers);
+  if (/^\/(obra|topo|api)\//.test(ruta)) h.set('x-robots-tag', 'noindex');
+  else h.delete('x-robots-tag');
+  h.set('permissions-policy', PERMISOS);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 export default async (req, context) => {
-  if ((Netlify.env.get('CANDADO') || '').toLowerCase() === 'off') return context.next();
+  if ((Netlify.env.get('CANDADO') || '').toLowerCase() === 'off') return publico(req, context);
   const codigo = Netlify.env.get('ACCESO_CODIGO'), secreto = Netlify.env.get('ACCESO_SECRETO');
   if (!codigo || !secreto) return new Response('Sitio cerrado: falta configurar el acceso.', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } });
   const url = new URL(req.url);
