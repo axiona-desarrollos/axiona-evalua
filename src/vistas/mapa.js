@@ -18,12 +18,14 @@ export async function render(main) {
     return { id: p.id, lat: p.ubicacion.lat, lon: p.ubicacion.lon, nivel: pro ? r.banda.id : p.orientacion?.nivel, titulo: p.ubicacion.direccion };
   });
   ponerPredios(mapa, lista, { alTocar: id => { location.hash = `#/expediente/${id}`; } });
+  let vivo = true; // si la persona sale del mapa antes de que lleguen los sismos, no se toca un mapa ya cerrado
   sismosRecientes().then(d => {
+    if (!vivo) return;
     if (!d?.eventos) { $('#fuentes', main).textContent = 'Sismos recientes: sin conexión'; return; }
     ponerSismos(mapa, d.eventos);
     $('#fuentes', main).textContent = `${d.eventos.length} sismos desde el 10-ago · fuentes: ${d.fuentes.map(f => `${f.id} ${f.ok ? '✓' : '✗'}`).join(' · ')}`;
   });
   $('#capas', main).addEventListener('change', e => { const k = e.target.dataset.c; if (!k) return; visible(mapa, k, e.target.checked); if (k === 'mmi') visible(mapa, 'mmi-txt', e.target.checked); });
-  return () => mapa.remove();
+  return () => { vivo = false; mapa.remove(); };
 }
 export { ICON };
