@@ -28,6 +28,10 @@ for (const sub of ['obra', 'topo']) {
   let h = readFileSync(f, 'utf8');
   if (!h.includes('/puente.js')) h = h.replace('</head>', '<script src="/puente.js"></script>\n</head>');
   h = h.replace(/<link rel="manifest"[^>]*>\s*/g, '');
+  // Radar: dentro de Evalúa, Obra y Topo cuentan como visitas de Evalúa (no de obra.axionasoft.com)
+  const RADAR = '<script defer src="https://axiona-radar.netlify.app/r.js" data-sitio="evalua"></script>';
+  if (/axiona-radar\.netlify\.app\/r\.js/.test(h)) h = h.replace(/data-sitio="[^"]*"/, 'data-sitio="evalua"');
+  else h = h.replace('</head>', `${RADAR}\n</head>`);
   h = h.replace(/<meta name="robots"[^>]*>/g, '').replace('<head>', '<head>\n<meta name="robots" content="noindex, nofollow">');
   writeFileSync(f, h);
 }
